@@ -11,11 +11,11 @@ import {
   copyFiddle,
   copyTemplate,
   cwdFiddle,
+  finalizeFiddle,
   frameworkDir,
   getEntry,
   humanizeName,
   inferStart,
-  injectDefaults,
   listCollection,
   nextNumber,
   openInEditor,
@@ -255,12 +255,20 @@ program
     console.log(banner(`create · ${framework}`))
     console.log(c.dim(`  → ${target}\n`))
     if (entry.provider === 'delegate') {
-      await runShell(entry.run!.replace(/{name}/g, dirName), fwDir)
+      try {
+        await runShell(entry.run!.replace(/{name}/g, dirName), fwDir)
+      } catch (e) {
+        // Modern scaffolders (create-vite) can exit non-zero yet still produce the
+        // project — an interactive prompt, or an auto-started dev server the user
+        // Ctrl-C's (SIGINT → non-zero). Don't orphan a scaffolded dir: if the project
+        // landed, register it anyway; only re-throw if nothing was created.
+        if (!fs.existsSync(path.join(target, 'package.json'))) throw e
+        console.log(c.amber('  ! scaffolder exited non-zero but the project is there — registering it anyway'))
+      }
     } else {
       copyTemplate(entry.dir!, target)
     }
-    injectDefaults(target, framework, dirName, isBrowser(entry.start))
-    writeMeta(target, { framework, name: dirName, start: entry.start, createdAt: new Date().toISOString() })
+    finalizeFiddle(target, framework, dirName, entry.start, isBrowser(entry.start))
     if (opts.install) {
       console.log(c.dim('\n  installing…\n'))
       await runShell('npm install', target)

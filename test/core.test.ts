@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { nextNumber, resolveFiddle, frameworkDir, getEntry, inferStart } from '../src/core.ts'
+import { nextNumber, resolveFiddle, frameworkDir, getEntry, inferStart, finalizeFiddle, readMeta } from '../src/core.ts'
 import { resolveHome } from '../src/config.ts'
 
 /** Point the collection home at a fresh temp dir for the next call. */
@@ -65,4 +65,27 @@ test('inferStart: reads existing fiddles for adopt', () => {
   assert.equal(inferStart(mk('static', { 'index.html': '<html></html>' })), 'npx --yes serve -l 5173')
   assert.equal(inferStart(mk('node', { 'index.mjs': '' })), 'node index.mjs')
   assert.equal(inferStart(mk('noentry', { 'notes.txt': '' })), '') // bash/C-style: nothing runnable
+})
+
+test('finalizeFiddle: registers a scaffolded dir (the step a non-zero delegate used to skip)', () => {
+  isolate()
+  const dir = path.join(frameworkDir('react'), 'fiddle-0001-Demo')
+  fs.mkdirSync(dir, { recursive: true })
+  // a bare create-vite-style scaffold: just a package.json, no .fiddle.json/CLAUDE.md
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'demo', scripts: { dev: 'vite' } }))
+
+  finalizeFiddle(dir, 'react', 'fiddle-0001-Demo', 'npm run dev', true)
+
+  // .fiddle.json written with the recorded start command → `fiddle start` now works
+  assert.equal(readMeta(dir).start, 'npm run dev')
+  // injectDefaults ran: CLAUDE.md + Playwright wiring are present (were missing on the orphaned 0024)
+  assert.ok(fs.existsSync(path.join(dir, 'CLAUDE.md')))
+  assert.ok(fs.existsSync(path.join(dir, 'playwright.config.ts')))
+})
+
+test('react delegate is pinned + non-interactive-friendly (no @latest drift)', () => {
+  const run = getEntry('react').run ?? ''
+  assert.match(run, /create vite@\d/) // pinned to a major, not @latest
+  assert.match(run, /--template react-ts/) // framework/variant stays non-interactive
+  assert.doesNotMatch(run, /@latest/)
 })
