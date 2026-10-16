@@ -14,7 +14,11 @@ export interface TemplateEntry {
 /** Shorthand for a Vite-scaffolded framework (delegate → the official create-vite template). */
 const vite = (template: string, label: string): TemplateEntry => ({
   provider: 'delegate',
-  run: `npm create vite@latest {name} -- --template ${template}`,
+  // Pin create-vite to a major (no silent template drift) and auto-confirm the
+  // `npm create` package fetch. `--template` keeps framework/variant non-interactive;
+  // any remaining prompt — or an auto-started dev server the user Ctrl-C's — is handled
+  // resiliently by `create` (a non-zero delegate exit no longer orphans the scaffold).
+  run: `npm_config_yes=true npm create vite@9 {name} -- --template ${template}`,
   start: 'npm run dev',
   label
 })

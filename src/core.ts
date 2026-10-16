@@ -167,6 +167,20 @@ export function writeMeta(dir: string, meta: FiddleMeta): void {
 }
 
 /**
+ * Register a freshly-scaffolded fiddle: inject the defaults (CLAUDE.md, structured
+ * README, Playwright wiring) then write `.fiddle.json`. Split out of `create` so it
+ * can run even when the delegate scaffolder (e.g. create-vite) exits non-zero yet
+ * still produced the project — an interactive prompt, or an auto-started dev server
+ * the user Ctrl-C's. Previously these two steps sat inline after the delegate, so a
+ * non-zero exit threw before them and left the scaffold orphaned (no `.fiddle.json`,
+ * no CLAUDE.md) — which then needed a manual `fiddle adopt` to recover.
+ */
+export function finalizeFiddle(dir: string, framework: string, name: string, start: string, browser: boolean): void {
+  injectDefaults(dir, framework, name, browser)
+  writeMeta(dir, { framework, name, start, createdAt: new Date().toISOString() })
+}
+
+/**
  * Infer how to run an existing (un-adopted) fiddle from its files, so `adopt`
  * can record a start command for a collection fiddle didn't scaffold. Empty
  * string = nothing runnable found (e.g. a bash/C/python fiddle) — still adopted
